@@ -1,13 +1,32 @@
-// clock.js — Core broadcast clock Canvas renderer
-// Uses requestAnimationFrame exclusively for rendering.
-// Time source: Web Worker corrected time + performance.now() interpolation.
+// clock.js — Core broadcast clock engine
+// Modular mode renderer architecture. Each mode is a self-contained render function.
 
-import { getSegmentAt, getNextSegment } from './config.js';
+import { getSegmentAt, getNextSegment, resetSegmentCache } from './config.js';
+import { BroadcastMode } from './modes/broadcast.js';
+import { StudioLEDMode } from './modes/studio-led.js';
+import { AnalogueMode } from './modes/analogue.js';
+import { FlipMode } from './modes/flip.js';
+import { MinimalMode } from './modes/minimal.js';
+import { CountdownMode } from './modes/countdown.js';
+import { BinaryMode } from './modes/binary.js';
+import { WorldMode } from './modes/world.js';
+import { SpectrumMode } from './modes/spectrum.js';
+import { NixieMode } from './modes/nixie.js';
 
 const TAU = Math.PI * 2;
-const HALF_PI = Math.PI / 2;
-const DEG_PER_MIN = TAU / 60;
-const GAP_RAD = (1.5 * Math.PI) / 180; // 1.5° gap between segments
+
+export const MODES = [
+  BroadcastMode,
+  StudioLEDMode,
+  AnalogueMode,
+  FlipMode,
+  MinimalMode,
+  CountdownMode,
+  BinaryMode,
+  WorldMode,
+  SpectrumMode,
+  NixieMode,
+];
 
 export class BroadcastClock {
   constructor(canvas, config) {
@@ -19,7 +38,11 @@ export class BroadcastClock {
     this.display = config.display || {};
     this.timing = config.timing || {};
 
-    // Time state — updated by worker, interpolated by rAF
+    // Current mode
+    this._modeIndex = 0;
+    this._mode = MODES[0];
+
+    // Time state
     this._workerTime = Date.now();
     this._workerPerfStamp = performance.now();
     this._syncStatus = 'unsynced';
@@ -28,11 +51,34 @@ export class BroadcastClock {
     // Interaction
     this._hoveredSegment = null;
     this._selectedSegment = null;
-    this._tooltip = { visible: false, x: 0, y: 0, text: '' };
 
     // Metadata
     this._nowPlaying = { artist: '', title: '' };
     this._showInfo = config.show || {};
+
+    // Stopwatch
+    this._stopwatch = { running: false, startTime: 0, elapsed: 0 };
+
+    // Tally lights
+    this._tallies = config.tallies || [
+      { label: 'MIC LIVE', colour: '#ef4444', active: false },
+      { label: 'ON AIR', colour: '#ef4444', active: false },
+      { label: 'PHONE', colour: '#f59e0b', active: false },
+      { label: 'RECORDING', colour: '#ef4444', active: false },
+    ];
+
+    // Broadcast widgets
+    this._broadcastDelay = 0; // seconds
+    this._actionButtons = [
+      { label: 'BREAK', colour: '#22c55e', active: false },
+      { label: 'EXIT', colour: '#f59e0b', active: false },
+      { label: 'DUMP', colour: '#ef4444', active: false },
+    ];
+
+    // Callbacks
+    this.onModeChange = null;
+    this.onStopwatchChange = null;
+    this.onTallyChange = null;
 
     // Worker
     this._worker = null;
@@ -44,22 +90,91 @@ export class BroadcastClock {
     this._startRender();
   }
 
-  // ─── Precision Time ───────────────────────────────────────
+  // ─── Mode Management ─────────────────────────────────────
 
-  /** Corrected current time using worker time + performance.now() interpolation */
+  get mode() { return this._mode; }
+  get modeIndex() { return this._modeIndex; }
+  get modes() { return MODES; }
+
+  setMode(indexOrId) {
+    let idx;
+    if (typeof indexOrId === 'string') {
+      idx = MODES.findIndex(m => m.id === indexOrId);
+      if (idx < 0) return;
+    } else {
+      idx = indexOrId;
+      if (idx < 0 || idx >= MODES.length) return;
+    }
+    this._modeIndex = idx;
+    this._mode = MODES[idx];
+    if (this.onModeChange) this.onModeChange(this._mode, idx);
+  }
+
+  // ─── Stopwatch ────────────────────────────────────────────
+
+  get stopwatch() {
+    const sw = this._stopwatch;
+    const elapsed = sw.running
+      ? sw.elapsed + (performance.now() - sw.startTime)
+      : sw.elapsed;
+    return { running: sw.running, elapsed };
+  }
+
+  stopwatchToggle() {
+    const sw = this._stopwatch;
+    if (sw.running) {
+      sw.elapsed += performance.now() - sw.startTime;
+      sw.running = false;
+    } else {
+      sw.startTime = performance.now();
+      sw.running = true;
+    }
+    if (this.onStopwatchChange) this.onStopwatchChange(this.stopwatch);
+  }
+
+  stopwatchReset() {
+    this._stopwatch = { running: false, startTime: 0, elapsed: 0 };
+    if (this.onStopwatchChange) this.onStopwatchChange(this.stopwatch);
+  }
+
+  // ─── Tally Lights ────────────────────────────────────────
+
+  get tallies() { return this._tallies; }
+
+  toggleTally(index) {
+    if (index >= 0 && index < this._tallies.length) {
+      this._tallies[index].active = !this._tallies[index].active;
+      if (this.onTallyChange) this.onTallyChange(this._tallies);
+    }
+  }
+
+  // ─── Action Buttons ──────────────────────────────────────
+
+  get actionButtons() { return this._actionButtons; }
+
+  toggleAction(index) {
+    if (index >= 0 && index < this._actionButtons.length) {
+      this._actionButtons[index].active = !this._actionButtons[index].active;
+    }
+  }
+
+  // ─── Broadcast Delay ─────────────────────────────────────
+
+  get broadcastDelay() { return this._broadcastDelay; }
+  set broadcastDelay(v) { this._broadcastDelay = v; }
+
+  // ─── Precision Time ──────────────────────────────────────
+
   _now() {
     const elapsed = performance.now() - this._workerPerfStamp;
     return this._workerTime + elapsed;
   }
 
   _startWorker() {
-    // Build worker from source — inline blob so no extra file needed at runtime
-    // But we also support loading from URL for bundled builds
     try {
       const workerUrl = new URL('./clock-worker.js', import.meta.url);
       this._worker = new Worker(workerUrl, { type: 'module' });
     } catch (e) {
-      // Fallback: inline worker with setInterval
       this._worker = null;
       this._fallbackTicker();
       return;
@@ -88,7 +203,6 @@ export class BroadcastClock {
   }
 
   _fallbackTicker() {
-    // No worker support — just use Date.now() directly
     setInterval(() => {
       this._workerTime = Date.now();
       this._workerPerfStamp = performance.now();
@@ -126,7 +240,6 @@ export class BroadcastClock {
     this.canvas.addEventListener('mousemove', (e) => this._onMouse(e));
     this.canvas.addEventListener('mouseleave', () => {
       this._hoveredSegment = null;
-      this._tooltip.visible = false;
     });
     this.canvas.addEventListener('click', (e) => this._onClick(e));
   }
@@ -137,28 +250,15 @@ export class BroadcastClock {
     const y = (e.clientY - rect.top) * this.dpr - this.cy;
     const dist = Math.sqrt(x * x + y * y);
     if (dist < this.radius * 0.35 || dist > this.radius * 1.05) return -1;
-    let angle = Math.atan2(y, x) + HALF_PI;
+    let angle = Math.atan2(y, x) + Math.PI / 2;
     if (angle < 0) angle += TAU;
     return (angle / TAU) * 60;
   }
 
   _onMouse(e) {
     const minute = this._getMinuteFromEvent(e);
-    if (minute < 0) {
-      this._hoveredSegment = null;
-      this._tooltip.visible = false;
-      return;
-    }
-    const seg = getSegmentAt(this.segments, minute);
-    this._hoveredSegment = seg;
-    if (seg) {
-      this._tooltip = {
-        visible: true,
-        x: e.clientX,
-        y: e.clientY,
-        text: `${seg.label} (${seg.start}:00–${seg.end}:00)\n${seg.description || seg.type}`,
-      };
-    }
+    if (minute < 0) { this._hoveredSegment = null; return; }
+    this._hoveredSegment = getSegmentAt(this.segments, minute);
   }
 
   _onClick(e) {
@@ -179,6 +279,7 @@ export class BroadcastClock {
     this.colours = config.colours || {};
     this.display = config.display || {};
     this._showInfo = config.show || {};
+    resetSegmentCache();
   }
 
   destroy() {
@@ -187,7 +288,7 @@ export class BroadcastClock {
     if (this._resizeObserver) this._resizeObserver.disconnect();
   }
 
-  // ─── Render Loop (rAF only) ──────────────────────────────
+  // ─── Render Loop ──────────────────────────────────────────
 
   _startRender() {
     const frame = () => {
@@ -206,329 +307,86 @@ export class BroadcastClock {
     const ms = date.getMilliseconds();
     const exactMinute = minutes + seconds / 60 + ms / 60000;
 
-    const cx = this.cx;
-    const cy = this.cy;
-    const r = this.radius;
-
-    // Clear
+    // Clear & background
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // Background
     ctx.fillStyle = '#0a0e1a';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    const currentSeg = getSegmentAt(this.segments, exactMinute);
-    const nextSeg = getNextSegment(this.segments, exactMinute);
+    // Build state object for mode renderer
+    const state = {
+      cx: this.cx,
+      cy: this.cy,
+      r: this.radius,
+      dpr: this.dpr,
+      size: this.size,
+      date,
+      exactMinute,
+      segments: this.segments,
+      colours: this.colours,
+      display: this.display,
+      timing: this.timing,
+      hoveredSegment: this._hoveredSegment,
+      selectedSegment: this._selectedSegment,
+      syncStatus: this._syncStatus,
+      syncRtt: this._syncRtt,
+      nowPlaying: this._nowPlaying,
+      showInfo: this._showInfo,
+    };
 
-    // Draw segments
-    this._drawSegments(ctx, cx, cy, r, exactMinute, currentSeg);
+    // Render active mode
+    const result = this._mode.render(ctx, state);
 
-    // Minute markers
-    this._drawMinuteMarkers(ctx, cx, cy, r);
+    // Store results for side panel access
+    this._lastResult = result || {};
 
-    // Sweep hand
-    this._drawSweepHand(ctx, cx, cy, r, exactMinute);
-
-    // Centre circle
-    this._drawCentre(ctx, cx, cy, r, date, currentSeg, nextSeg, exactMinute);
-
-    // Sync indicator
-    if (this.timing.showSyncStatus !== false) {
-      this._drawSyncIndicator(ctx, cx, cy, r);
-    }
-
-    // Tooltip (rendered as overlay)
-    this._drawTooltip(ctx);
+    // Draw stopwatch overlay if active
+    this._drawStopwatch(ctx);
   }
 
-  _drawSegments(ctx, cx, cy, r, exactMinute, currentSeg) {
-    const outerR = r;
-    const innerR = r * 0.55;
-    const labelR = r * 0.75;
+  _drawStopwatch(ctx) {
+    const sw = this.stopwatch;
+    if (sw.elapsed === 0 && !sw.running) return;
 
-    for (const seg of this.segments) {
-      const startAngle = (seg.start / 60) * TAU - HALF_PI + GAP_RAD / 2;
-      const endAngle = (seg.end / 60) * TAU - HALF_PI - GAP_RAD / 2;
-      const baseColour = this.colours[seg.type] || '#666';
-      const isCurrent = currentSeg === seg;
-      const isHovered = this._hoveredSegment === seg;
-      const isSelected = this._selectedSegment === seg;
+    const elapsed = sw.elapsed;
+    const totalSec = elapsed / 1000;
+    const mins = Math.floor(totalSec / 60);
+    const secs = Math.floor(totalSec % 60);
+    const hundredths = Math.floor((totalSec % 1) * 100);
+    const str = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
 
-      // Gradient: lighter at outer edge
-      const grad = ctx.createRadialGradient(cx, cy, innerR, cx, cy, outerR);
-      const alpha = isCurrent ? 1.0 : isHovered ? 0.9 : 0.7;
-      grad.addColorStop(0, this._rgba(baseColour, alpha * 0.8));
-      grad.addColorStop(1, this._rgba(baseColour, alpha));
+    const fs = Math.max(12, this.size / 18) * this.dpr;
+    const y = this.cy + this.radius * 0.88;
 
-      ctx.beginPath();
-      ctx.arc(cx, cy, outerR, startAngle, endAngle);
-      ctx.arc(cx, cy, innerR, endAngle, startAngle, true);
-      ctx.closePath();
-      ctx.fillStyle = grad;
-      ctx.fill();
+    // Background pill
+    ctx.font = `700 ${fs}px "JetBrains Mono", monospace`;
+    const tw = ctx.measureText(str).width + 20 * this.dpr;
+    const th = fs * 1.4;
+    const tx = this.cx - tw / 2;
+    const ty = y - th / 2;
 
-      // Current segment glow
-      if (isCurrent) {
-        ctx.save();
-        ctx.shadowColor = baseColour;
-        ctx.shadowBlur = 20 * this.dpr;
-        ctx.beginPath();
-        ctx.arc(cx, cy, outerR, startAngle, endAngle);
-        ctx.arc(cx, cy, innerR, endAngle, startAngle, true);
-        ctx.closePath();
-        ctx.strokeStyle = this._rgba(baseColour, 0.6);
-        ctx.lineWidth = 2 * this.dpr;
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // Segment border
-      ctx.beginPath();
-      ctx.arc(cx, cy, outerR, startAngle, endAngle);
-      ctx.arc(cx, cy, innerR, endAngle, startAngle, true);
-      ctx.closePath();
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-      ctx.lineWidth = 1 * this.dpr;
-      ctx.stroke();
-
-      // Labels for segments wider than 4 minutes
-      if (this.display.showLabels && (seg.end - seg.start) >= 4) {
-        const midAngle = ((seg.start + seg.end) / 2 / 60) * TAU - HALF_PI;
-        const lx = cx + Math.cos(midAngle) * labelR;
-        const ly = cy + Math.sin(midAngle) * labelR;
-        const fontSize = Math.max(9, Math.min(14, this.size / 40)) * this.dpr;
-        ctx.save();
-        ctx.font = `${isCurrent ? 'bold ' : ''}${fontSize}px "Inter", "SF Pro", system-ui, sans-serif`;
-        ctx.fillStyle = isCurrent ? '#fff' : 'rgba(255,255,255,0.75)';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        // Rotate text to follow arc
-        ctx.translate(lx, ly);
-        let rot = midAngle + HALF_PI;
-        if (rot > HALF_PI && rot < HALF_PI + Math.PI) rot += Math.PI;
-        ctx.rotate(rot);
-        ctx.fillText(seg.label, 0, 0);
-        ctx.restore();
-      }
-    }
-  }
-
-  _drawMinuteMarkers(ctx, cx, cy, r) {
-    const outerR = r * 1.02;
-    for (let i = 0; i < 60; i++) {
-      const angle = (i / 60) * TAU - HALF_PI;
-      const isMajor = i % 5 === 0;
-      const innerR = isMajor ? r * 0.95 : r * 0.97;
-      const x1 = cx + Math.cos(angle) * innerR;
-      const y1 = cy + Math.sin(angle) * innerR;
-      const x2 = cx + Math.cos(angle) * outerR;
-      const y2 = cy + Math.sin(angle) * outerR;
-
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.strokeStyle = isMajor ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.25)';
-      ctx.lineWidth = (isMajor ? 2 : 1) * this.dpr;
-      ctx.stroke();
-
-      // Number labels at 5-minute marks
-      if (isMajor) {
-        const numR = r * 1.08;
-        const nx = cx + Math.cos(angle) * numR;
-        const ny = cy + Math.sin(angle) * numR;
-        const fontSize = Math.max(10, this.size / 35) * this.dpr;
-        ctx.font = `bold ${fontSize}px "Inter", "SF Pro", system-ui, sans-serif`;
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(String(i), nx, ny);
-      }
-    }
-  }
-
-  _drawSweepHand(ctx, cx, cy, r, exactMinute) {
-    const angle = (exactMinute / 60) * TAU - HALF_PI;
-    const handR = r * 1.0;
-    const tailR = r * 0.15;
-
-    // Glow
-    ctx.save();
-    ctx.shadowColor = '#ffffff';
-    ctx.shadowBlur = 12 * this.dpr;
-
-    // Hand line
+    ctx.fillStyle = sw.running ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.08)';
     ctx.beginPath();
-    ctx.moveTo(
-      cx + Math.cos(angle + Math.PI) * tailR,
-      cy + Math.sin(angle + Math.PI) * tailR,
-    );
-    ctx.lineTo(
-      cx + Math.cos(angle) * handR,
-      cy + Math.sin(angle) * handR,
-    );
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2.5 * this.dpr;
-    ctx.lineCap = 'round';
-    ctx.stroke();
-
-    // Tip dot
-    ctx.beginPath();
-    ctx.arc(
-      cx + Math.cos(angle) * handR,
-      cy + Math.sin(angle) * handR,
-      3 * this.dpr, 0, TAU,
-    );
-    ctx.fillStyle = '#ffffff';
+    const rad = th / 2;
+    ctx.moveTo(tx + rad, ty);
+    ctx.lineTo(tx + tw - rad, ty);
+    ctx.quadraticCurveTo(tx + tw, ty, tx + tw, ty + rad);
+    ctx.lineTo(tx + tw, ty + th - rad);
+    ctx.quadraticCurveTo(tx + tw, ty + th, tx + tw - rad, ty + th);
+    ctx.lineTo(tx + rad, ty + th);
+    ctx.quadraticCurveTo(tx, ty + th, tx, ty + th - rad);
+    ctx.lineTo(tx, ty + rad);
+    ctx.quadraticCurveTo(tx, ty, tx + rad, ty);
+    ctx.closePath();
     ctx.fill();
 
-    // Centre pivot
-    ctx.beginPath();
-    ctx.arc(cx, cy, 4 * this.dpr, 0, TAU);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  _drawCentre(ctx, cx, cy, r, date, currentSeg, nextSeg, exactMinute) {
-    const innerR = r * 0.50;
-
-    // Dark centre circle
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, innerR);
-    grad.addColorStop(0, 'rgba(10, 14, 26, 0.98)');
-    grad.addColorStop(1, 'rgba(10, 14, 26, 0.92)');
-    ctx.beginPath();
-    ctx.arc(cx, cy, innerR, 0, TAU);
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-    // Border ring
-    ctx.beginPath();
-    ctx.arc(cx, cy, innerR, 0, TAU);
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.strokeStyle = sw.running ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.1)';
     ctx.lineWidth = 1 * this.dpr;
     ctx.stroke();
 
-    // Time — HH:MM:SS (smooth seconds via ms-accurate time)
-    const h = String(date.getHours()).padStart(2, '0');
-    const m = String(date.getMinutes()).padStart(2, '0');
-    const s = String(date.getSeconds()).padStart(2, '0');
-    const timeStr = `${h}:${m}:${s}`;
-
-    const timeFontSize = Math.max(16, this.size / 10) * this.dpr;
-    ctx.font = `bold ${timeFontSize}px "JetBrains Mono", "SF Mono", "Consolas", monospace`;
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = sw.running ? '#22c55e' : 'rgba(255,255,255,0.5)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(timeStr, cx, cy - innerR * 0.18);
-
-    // Current segment name
-    if (currentSeg) {
-      const segFontSize = Math.max(10, this.size / 22) * this.dpr;
-      ctx.font = `600 ${segFontSize}px "Inter", "SF Pro", system-ui, sans-serif`;
-      const segColour = this.colours[currentSeg.type] || '#888';
-      ctx.fillStyle = segColour;
-      ctx.fillText(currentSeg.label, cx, cy + innerR * 0.15);
-
-      // Time remaining
-      const remainMin = currentSeg.end - exactMinute;
-      const remM = Math.floor(remainMin);
-      const remS = Math.floor((remainMin - remM) * 60);
-      const remStr = `${remM}:${String(remS).padStart(2, '0')} remaining`;
-      const remFontSize = Math.max(8, this.size / 32) * this.dpr;
-      ctx.font = `${remFontSize}px "Inter", "SF Pro", system-ui, sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.fillText(remStr, cx, cy + innerR * 0.40);
-    }
-
-    // Next segment hint
-    if (nextSeg && this.display.showNextSegment) {
-      const nextMin = nextSeg.start - exactMinute;
-      const nM = nextMin < 0 ? nextMin + 60 : nextMin;
-      const nMins = Math.floor(nM);
-      const nSecs = Math.floor((nM - nMins) * 60);
-      const nextStr = `Next: ${nextSeg.label} in ${nMins}:${String(nSecs).padStart(2, '0')}`;
-      const nextFontSize = Math.max(7, this.size / 38) * this.dpr;
-      ctx.font = `${nextFontSize}px "Inter", "SF Pro", system-ui, sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.fillText(nextStr, cx, cy + innerR * 0.60);
-    }
-  }
-
-  _drawSyncIndicator(ctx, cx, cy, r) {
-    const x = cx + r * 0.88;
-    const y = cy - r * 0.88;
-    const dotR = 4 * this.dpr;
-    const colour =
-      this._syncStatus === 'synced' ? '#22c55e' :
-      this._syncStatus === 'degraded' ? '#f59e0b' : '#ef4444';
-
-    ctx.beginPath();
-    ctx.arc(x, y, dotR, 0, TAU);
-    ctx.fillStyle = colour;
-    ctx.fill();
-
-    // Subtle label
-    const fs = Math.max(7, this.size / 50) * this.dpr;
-    ctx.font = `${fs}px "Inter", system-ui, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(this._syncStatus === 'synced' ? 'SYNC' : this._syncStatus === 'degraded' ? 'SYNC ~' : 'NO SYNC', x - dotR * 2, y);
-    ctx.textAlign = 'center'; // reset
-  }
-
-  _drawTooltip(ctx) {
-    if (!this._tooltip.visible || !this._hoveredSegment) return;
-    // Tooltip rendered via DOM overlay is better — but canvas fallback here
-    const seg = this._hoveredSegment;
-    const text = `${seg.label}  (${seg.start}:00 – ${seg.end}:00)`;
-    const desc = seg.description || seg.type;
-
-    const pad = 8 * this.dpr;
-    const fs = Math.max(10, this.size / 35) * this.dpr;
-    ctx.font = `${fs}px "Inter", system-ui, sans-serif`;
-    const tw = Math.max(ctx.measureText(text).width, ctx.measureText(desc).width) + pad * 2;
-    const th = fs * 2.5 + pad * 2;
-
-    // Position near top-right
-    const tx = this.cx + this.radius * 0.3;
-    const ty = this.cy - this.radius * 0.85;
-
-    ctx.fillStyle = 'rgba(0,0,0,0.85)';
-    this._roundRect(ctx, tx, ty, tw, th, 6 * this.dpr);
-    ctx.fill();
-
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.font = `bold ${fs}px "Inter", system-ui, sans-serif`;
-    ctx.fillText(text, tx + pad, ty + pad);
-    ctx.font = `${fs * 0.85}px "Inter", system-ui, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillText(desc, tx + pad, ty + pad + fs * 1.3);
-    ctx.textAlign = 'center'; // reset
-  }
-
-  _roundRect(ctx, x, y, w, h, rad) {
-    ctx.beginPath();
-    ctx.moveTo(x + rad, y);
-    ctx.lineTo(x + w - rad, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
-    ctx.lineTo(x + w, y + h - rad);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
-    ctx.lineTo(x + rad, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
-    ctx.lineTo(x, y + rad);
-    ctx.quadraticCurveTo(x, y, x + rad, y);
-    ctx.closePath();
-  }
-
-  _rgba(hex, alpha) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
+    ctx.fillText(str, this.cx, y);
+    ctx.textAlign = 'center';
   }
 }
