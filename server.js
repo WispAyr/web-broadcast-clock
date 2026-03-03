@@ -68,7 +68,8 @@ app.get('/api/now-playing', async (req, res) => {
       return res.json({ artist: '', title: '', listeners: 0 });
     }
 
-    // Parse "Artist - Title" from StreamTitle
+    // Parse artist/title from StreamTitle
+    // Handles "Artist - Title" and "Title by Artist" formats
     const streamTitle = source.title || source.yp_currently_playing || '';
     let artist = '';
     let title = streamTitle;
@@ -76,6 +77,12 @@ app.get('/api/now-playing', async (req, res) => {
     if (dashIdx > 0) {
       artist = streamTitle.substring(0, dashIdx).trim();
       title = streamTitle.substring(dashIdx + 3).trim();
+    } else {
+      const byIdx = streamTitle.lastIndexOf(' by ');
+      if (byIdx > 0) {
+        title = streamTitle.substring(0, byIdx).trim();
+        artist = streamTitle.substring(byIdx + 4).trim();
+      }
     }
 
     res.json({

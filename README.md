@@ -1,175 +1,131 @@
-# Web Broadcast Clock
+# 🕐 Web Broadcast Clock
 
-A modern, web-based broadcast clock for radio studios. Configurable, real-time, and beautiful.
+A modern, web-based broadcast clock for radio studios. Real-time, configurable, precision-timed, and beautiful.
+
+![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## Features
 
-- 🕐 **Circular broadcast clock** with configurable segments (music, ads, news, talk, jingles)
-- ⏱️ **Real-time sweep** showing current position in the hour
-- 🎵 **Now Playing** integration via Icecast/Shoutcast metadata
-- 📊 **Show info** from WordPress/custom APIs
-- 🎨 **Fully customisable** — colours, segments, layout via JSON config
-- 📱 **Responsive** — works on any screen size, portrait or landscape
-- 🌙 **Dark mode** — designed for studio environments
-- 🔌 **Embeddable** — drop into any web page or kiosk display
-- 🆓 **Open source** — MIT license
-
-## Use Cases
-
-- Community radio studio displays
-- Internet radio dashboards
-- Student/university radio
-- Hospital/prison radio
-- Podcast studio timing
-- Any broadcast environment needing visual timing
+- 🕐 **Circular broadcast clock** — 360° = 60 minutes, coloured segments for music, ads, news, talk, jingles
+- ⏱️ **60fps sweep hand** — smooth `requestAnimationFrame` rendering, zero jitter
+- 🎯 **Precision timing** — NTP-style server sync, Web Worker background timekeeping, accurate to <10ms
+- 🎵 **Now Playing** — Icecast/Shoutcast metadata integration via CORS proxy
+- 🎨 **Fully configurable** — JSON config for segments, colours, show info
+- 📦 **Web Component** — drop `<broadcast-clock>` into any page
+- 📱 **Responsive** — works at 200px to 800px+
+- 🌙 **Dark theme** — designed for studio environments, readable from 3m away
+- 🆓 **Open source** — MIT license, no dependencies for the clock itself
 
 ## Quick Start
-
-```bash
-npm install web-broadcast-clock
-```
-
-Or include directly:
-```html
-<script src="https://unpkg.com/web-broadcast-clock/dist/broadcast-clock.min.js"></script>
-<broadcast-clock config="/my-clock-config.json"></broadcast-clock>
-```
-
-## Configuration
-
-```json
-{
-  "segments": [
-    { "start": 0, "end": 3, "type": "news", "label": "News Bulletin" },
-    { "start": 3, "end": 15, "type": "music", "label": "Music Set 1" },
-    { "start": 15, "end": 18, "type": "ads", "label": "Ad Break 1" },
-    { "start": 18, "end": 30, "type": "music", "label": "Music Set 2" },
-    { "start": 30, "end": 33, "type": "news", "label": "Headlines" },
-    { "start": 33, "end": 45, "type": "music", "label": "Music Set 3" },
-    { "start": 45, "end": 48, "type": "ads", "label": "Ad Break 2" },
-    { "start": 48, "end": 55, "type": "music", "label": "Music Set 4" },
-    { "start": 55, "end": 58, "type": "talk", "label": "Back Anno / Intro" },
-    { "start": 58, "end": 60, "type": "jingle", "label": "Station ID" }
-  ],
-  "colours": {
-    "music": "#3b82f6",
-    "ads": "#ef4444",
-    "news": "#22c55e",
-    "talk": "#f59e0b",
-    "jingle": "#8b5cf6",
-    "weather": "#06b6d4"
-  },
-  "showInfo": {
-    "enabled": true,
-    "source": "icecast",
-    "url": "https://your-stream.example.com:8000/status-json.xsl"
-  }
-}
-```
-
-## Integrations
-
-| Source | Type | What You Get |
-|--------|------|-------------|
-| **Icecast/Shoutcast** | Stream metadata | Now playing (artist/title), listener count |
-| **WordPress (ProRadio)** | REST API | Show schedule, presenter info, show art |
-| **Custom API** | JSON endpoint | Any metadata you want to display |
-| **Manual** | JSON config | Static clock templates |
-
-## Development
 
 ```bash
 git clone https://github.com/WispAyr/web-broadcast-clock.git
 cd web-broadcast-clock
 npm install
-npm run dev
+npm start
+# → http://localhost:3970/
 ```
+
+## Usage
+
+### Standalone (kiosk/signage)
+
+Just open `demo/index.html` or run the dev server. Full-screen in a browser for studio display.
+
+### Web Component
+
+```html
+<script type="module" src="src/index.js"></script>
+<broadcast-clock config-url="config.json" size="500"></broadcast-clock>
+```
+
+### JavaScript API
+
+```javascript
+import { init } from './src/index.js';
+
+const canvas = document.getElementById('my-canvas');
+const { clock, metadata } = init(canvas, {
+  segments: [
+    { start: 0, end: 15, type: 'music', label: 'Music Set 1' },
+    { start: 15, end: 18, type: 'ads', label: 'Ad Break' },
+    // ...
+  ],
+  timing: {
+    syncEnabled: true,
+    syncEndpoint: '/api/time',
+  },
+});
+
+// Update now playing manually
+clock.setNowPlaying({ artist: 'Holly Valance', title: 'Kiss Kiss' });
+```
+
+## Configuration
+
+See `demo/config-default.json` for the full schema. Key sections:
+
+| Section | Description |
+|---------|-------------|
+| `segments` | Array of `{ start, end, type, label, description }` — minutes within the hour |
+| `colours` | Map of segment type → hex colour |
+| `metadata.icecast` | Icecast stream URL, mount, poll interval |
+| `show` | Current show name, presenter |
+| `display` | Toggle labels, time, now-playing, next segment |
+| `timing` | NTP sync endpoint, interval, sync status indicator |
+
+### Segment Types
+
+| Type | Default Colour | Use |
+|------|---------------|-----|
+| `music` | 🟦 `#3b82f6` | Music sets |
+| `ads` | 🟥 `#ef4444` | Ad breaks |
+| `news` | 🟩 `#22c55e` | News bulletins |
+| `talk` | 🟨 `#f59e0b` | Talk/chat/links |
+| `jingle` | 🟪 `#8b5cf6` | Jingles, IDs, sweepers |
+| `weather` | 🩵 `#06b6d4` | Weather reports |
+| `intro` | 💗 `#ec4899` | Show intros |
+
+## Presets
+
+Four built-in presets in `presets/`:
+
+- **community-radio.json** — Standard community radio hour (Now Ayrshire Radio)
+- **commercial-radio.json** — Commercial FM with heavy ad breaks
+- **talk-radio.json** — Talk/interview format
+- **music-station.json** — Automated music station, minimal breaks
 
 ## Precision Timing
 
-The broadcast clock includes NTP-style server synchronisation out of the box (±5-20ms accuracy). For environments requiring broadcast-grade timing, several advanced options are supported:
+The clock uses a multi-layer timing strategy for broadcast-grade accuracy:
 
-### Standard (default)
-- Server time sync via `/api/time` endpoint
-- `requestAnimationFrame` for jitter-free rendering
-- `performance.now()` monotonic timekeeping
-- Web Worker background clock (immune to tab throttling)
-- **Accuracy: ±5-20ms**
+1. **Web Worker** — maintains authoritative time in a background thread, immune to tab throttling
+2. **NTP-style sync** — on load, 3 round-trip samples to `/api/time`, picks lowest RTT, calculates offset
+3. **Re-sync every 60s** — silent background correction
+4. **`performance.now()` interpolation** — microsecond-resolution smoothing between worker ticks
+5. **`requestAnimationFrame` only** — no setInterval for rendering, guaranteed vsync
 
-### GPS NTP Server (recommended for broadcast)
-Add a GPS receiver to your network for stratum-1 NTP accuracy:
+Sync status indicator: 🟢 <10ms | 🟡 10-100ms | 🔴 >100ms or no sync
 
-```
-GPS Receiver → Raspberry Pi (chrony) → LAN NTP server
-                                            ↓
-                        Studio PCs sync to Pi → ±1ms accuracy
-```
+For production: run `ntpd` or `chrony` on the server, synced to stratum-1 sources.
 
-**Hardware needed:** Raspberry Pi + GPS HAT with PPS (e.g., Adafruit Ultimate GPS HAT, ~£25)
+## Dev Server
 
-**Setup:**
-```bash
-# On the Pi
-sudo apt install chrony gpsd gpsd-clients
-# Configure chrony to use GPS+PPS as reference clock
-# Configure studio PCs to use Pi as NTP server
-```
+Port 3970 (configurable via `PORT` env var).
 
-The broadcast clock server will automatically use the host's NTP-synced time. No code changes needed — just point your PCs at the GPS Pi for NTP.
+| Endpoint | Description |
+|----------|-------------|
+| `GET /` | Redirects to demo |
+| `GET /demo/` | Full demo page |
+| `GET /api/time` | Server time for NTP sync |
+| `GET /api/now-playing` | Icecast metadata proxy |
 
-### Starlink GPS Passthrough
-If your studio has a Starlink dish, it contains a GPS receiver with atomic-clock-grade satellite timing. The dish is accessible at `192.168.100.1` via gRPC and exposes:
+## Keyboard Shortcuts
 
-- `gps_ready` / `gps_valid` — GPS lock status
-- `gps_sats` — number of satellites tracked
-- Location data (when enabled in Starlink app → Settings → Advanced → Debug Data → Allow access on local network)
-
-The dish's internal clock is GPS-disciplined for satellite beam handoffs. To leverage this:
-
-1. **Enable location sharing** in the Starlink app (Settings → Advanced → Debug Data)
-2. **Query the dish** via gRPC tools: `pip install starlink-grpc-tools`
-3. **Use the dish as NTP source** — some firmware versions expose NTP at `192.168.100.1`
-4. **Combine with a local Pi** running chrony that queries both the dish and public NTP pools
-
-```bash
-# Test if your Starlink dish serves NTP
-ntpdate -q 192.168.100.1
-
-# Query GPS status via gRPC
-python3 dish_grpc_text.py location
-```
-
-See [starlink-grpc-tools](https://github.com/sparky8512/starlink-grpc-tools) for full dish API documentation.
-
-### Timing Architecture
-
-```
-┌─────────────────────────────────────────────┐
-│  GPS Satellites (atomic clocks)             │
-│         ↓                    ↓              │
-│  Starlink Dish          GPS HAT on Pi       │
-│  (192.168.100.1)        (PPS signal)        │
-│         ↓                    ↓              │
-│    ┌─── LAN NTP Server (chrony) ───┐        │
-│    ↓              ↓                ↓        │
-│  Studio PC 1   Studio PC 2   Studio PC 3   │
-│  (Screen 1)    (Screen 2)    (Screen 3)    │
-│    ↓              ↓                ↓        │
-│  Broadcast     Broadcast      Broadcast     │
-│  Clock App     Clock App      Clock App     │
-│    ↓                                        │
-│  /api/time → NTP-synced server time         │
-│  Web Worker → monotonic background clock    │
-│  rAF → smooth 60fps sweep rendering         │
-└─────────────────────────────────────────────┘
-```
-
-**Result:** All three studio screens display identical time, accurate to within 1ms of UTC, with smooth 60fps animation.
+| Key | Action |
+|-----|--------|
+| `Space` | Toggle side panel |
 
 ## License
 
-MIT — use it however you want. If you're a radio station using this, we'd love to hear about it!
-
-## Credits
-
-Built by [WispAyr](https://github.com/WispAyr) / Local Connect
+MIT
