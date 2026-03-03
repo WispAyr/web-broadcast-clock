@@ -1,17 +1,31 @@
 {
   "name": "web-broadcast-clock",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A modern, web-based broadcast clock for radio studios. Configurable segments, real-time sweep, Icecast integration, precision NTP-synced timing.",
   "type": "module",
   "main": "src/index.js",
+  "module": "src/index.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "build": "node scripts/build.js",
+    "test": "node server.js & sleep 2 && open http://localhost:3970/demo/"
   },
-  "keywords": ["broadcast", "clock", "radio", "studio", "icecast", "web-component", "canvas"],
+  "keywords": [
+    "broadcast",
+    "clock",
+    "radio",
+    "studio",
+    "icecast",
+    "web-component",
+    "canvas"
+  ],
   "author": "WispAyr",
   "license": "MIT",
   "dependencies": {
     "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.3"
   }
 }

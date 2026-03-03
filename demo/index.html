@@ -3,33 +3,51 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Broadcast Clock — Real-Time Radio Studio Clock</title>
+  <title>Broadcast Clock — Studio-Grade Radio Clock</title>
   <link rel="stylesheet" href="../src/styles.css">
   <style>
-    /* Demo-specific overrides */
-    .bc-header {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
+    /* Demo-specific enhancements */
+    .bc-header { padding: 0.8rem 2rem; }
+    .bc-title { font-size: 0.8rem; }
+
+    .bc-shortcuts {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 0.75rem 1.5rem;
-      z-index: 10;
-      background: linear-gradient(to bottom, rgba(10,14,26,0.95), transparent);
+      gap: 1rem;
+      margin-left: 1.5rem;
     }
-    .bc-title {
-      font-size: 0.85rem;
+    .bc-shortcut-item {
+      font-size: 0.75rem;
+      color: var(--bc-text-dim);
+    }
+    .bc-shortcut-item kbd {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      padding: 0.2rem 0.4rem;
+      font-family: 'JetBrains Mono', monospace;
+      margin-left: 0.3rem;
+    }
+
+    .bc-preset-info {
+      font-size: 0.7rem;
+      color: var(--bc-text-dim);
+      margin-top: 0.3rem;
+    }
+
+    .bc-fullscreen-btn {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--bc-border);
+      border-radius: 8px;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.75rem;
       font-weight: 600;
-      color: rgba(255,255,255,0.6);
-      letter-spacing: 0.05em;
+      color: var(--bc-text);
+      cursor: pointer;
+      transition: all 0.2s;
     }
-    .bc-title span { color: #3b82f6; }
-    .bc-controls {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
+    .bc-fullscreen-btn:hover {
+      background: rgba(255,255,255,0.06);
     }
   </style>
 </head>
@@ -38,14 +56,33 @@
   <!-- Header -->
   <div class="bc-header">
     <div class="bc-title"><span>●</span> BROADCAST CLOCK</div>
+    <div class="bc-shortcuts">
+      <div class="bc-shortcut-item"><span class="bc-label">ON AIR:</span> <kbd>O</kbd></div>
+      <div class="bc-shortcut-item"><span class="bc-label">STOPWATCH:</span> <kbd>S</kbd>/<kbd>R</kbd></div>
+      <div class="bc-shortcut-item"><span class="bc-label">MODES:</span> <kbd>1</kbd>-<kbd>0</kbd></div>
+      <div class="bc-shortcut-item"><span class="bc-label">FULLSCREEN:</span> <kbd>F</kbd></div>
+    </div>
     <div class="bc-controls">
-      <select id="preset-select" class="bc-preset-select" style="width: auto; min-width: 200px;">
+      <select id="mode-select" class="bc-mode-select">
+        <option value="broadcast">Broadcast Clock</option>
+        <option value="studio-led">Studio LED</option>
+        <option value="analogue">Analogue Studio</option>
+        <option value="flip">Digital Flip</option>
+        <option value="minimal">Minimal</option>
+        <option value="countdown">Countdown</option>
+        <option value="binary">Binary</option>
+        <option value="world">World Clock</option>
+        <option value="spectrum">Spectrum</option>
+        <option value="nixie">Nixie Tube</option>
+      </select>
+      <select id="preset-select" class="bc-preset-select" style="min-width: 220px;">
         <option value="config-default.json">Community Radio (Now Ayrshire)</option>
         <option value="config-commercial.json">Commercial FM</option>
         <option value="config-music-only.json">Music Station (Auto)</option>
         <option value="../presets/talk-radio.json">Talk Radio</option>
       </select>
-      <a href="https://github.com/WispAyr/web-broadcast-clock" target="_blank" class="bc-github" title="Star on GitHub">
+      <button id="fullscreen-btn" class="bc-fullscreen-btn">FULLSCREEN</button>
+      <a href="https://github.com/WispAyr/web-broadcast-clock" target="_blank" class="bc-github">
         <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         GitHub
       </a>
@@ -60,7 +97,7 @@
 
     <div class="bc-panel" id="side-panel">
       <div class="bc-card bc-now-playing">
-        <h3>🎵 Now Playing</h3>
+        <h3><svg viewBox="0 0 20 20"><path d="M10 0a10 10 0 100 20 10 10 0 000-20zm0 15a5 5 0 110-10 5 5 0 010 10z"/></svg> Now Playing</h3>
         <div class="bc-track" id="np-title">—</div>
         <div class="bc-artist" id="np-artist">Waiting for metadata…</div>
         <div class="bc-listeners" id="np-listeners">
@@ -70,31 +107,33 @@
       </div>
 
       <div class="bc-card bc-show-info">
-        <h3>📻 On Air</h3>
+        <h3><svg viewBox="0 0 20 20"><path d="M10 0C4.48 0 0 4.48 0 10s4.48 10 10 10 10-4.48 10-10S15.52 0 10 0zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-12h-2v6h4v-2h-2z"/></svg> On Air</h3>
         <div class="bc-show-name" id="show-name">—</div>
         <div class="bc-presenter" id="show-presenter">—</div>
+        <div class="bc-preset-info" id="preset-name"></div>
       </div>
 
       <div class="bc-card bc-next-up">
-        <h3>⏭️ Coming Up</h3>
+        <h3><svg viewBox="0 0 20 20"><path d="M10 0C4.48 0 0 4.48 0 10s4.48 10 10 10 10-4.48 10-10S15.52 0 10 0zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4-9H6v2h8z"/></svg> Coming Up</h3>
         <div id="next-segment">—</div>
       </div>
 
       <div class="bc-card">
-        <h3>⚙️ Preset</h3>
-        <select id="preset-select-panel" class="bc-preset-select">
-          <option value="config-default.json">Community Radio</option>
-          <option value="config-commercial.json">Commercial FM</option>
-          <option value="config-music-only.json">Music Station</option>
-          <option value="../presets/talk-radio.json">Talk Radio</option>
-        </select>
+        <h3><svg viewBox="0 0 20 20"><path d="M10 0C4.48 0 0 4.48 0 10s4.48 10 10 10 10-4.48 10-10S15.52 0 10 0zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-8H6v4h3v-4zm6 0h-3v4h3v-4z"/></svg> Tally Lights</h3>
+        <div id="tally-container" class="bc-tally-container"></div>
+        <div id="tools-container" class="bc-tools"></div>
       </div>
     </div>
   </div>
 
+  <!-- Keyboard help -->
+  <div class="bc-help">
+    Keyboard shortcuts: <kbd>O</kbd> ON AIR • <kbd>S</kbd> Stopwatch • <kbd>R</kbd> Reset • <kbd>F</kbd> Fullscreen • <kbd>1-0</kbd> Modes
+  </div>
+
   <script type="module">
-    import { init, parseConfig, MetadataProvider } from '../src/index.js';
-    import { getSegmentAt, getNextSegment } from '../src/config.js';
+    import { init, parseConfig, MODES } from '../src/index.js';
+    import { getNextSegment } from '../src/config.js';
 
     let currentClock = null;
     let currentMetadata = null;
@@ -106,21 +145,28 @@
     }
 
     async function startClock(configUrl) {
-      // Destroy previous
       if (currentClock) currentClock.clock.destroy();
       if (currentMetadata) currentMetadata.stop();
 
       const config = await loadPreset(configUrl);
       const canvas = document.getElementById('clock-canvas');
       const result = init(canvas, config);
-      currentClock = result;
+      currentClock = result.clock;
       currentMetadata = result.metadata;
 
-      // Show info
+      // Bind callbacks
+      currentClock.onModeChange = (mode) => updateModeSelect(mode);
+      currentClock.onStopwatchChange = () => {};
+      currentClock.onTallyChange = () => updateTallyLights();
+
+      // Populate UI
       document.getElementById('show-name').textContent = config.show?.name || '—';
       document.getElementById('show-presenter').textContent = config.show?.presenter || '—';
+      document.getElementById('preset-name').textContent = config.name || '';
+      updateTallyLights();
+      updateTools();
 
-      // Update side panel metadata
+      // Metadata updates
       if (currentMetadata) {
         const origUpdate = currentMetadata.onUpdate;
         currentMetadata.onUpdate = (data) => {
@@ -129,8 +175,8 @@
         };
       }
 
-      // Panel update loop
-      updatePanel(config);
+      // Side panel update loop
+      updateSidePanel(config);
     }
 
     function updateNowPlaying(data) {
@@ -141,10 +187,9 @@
       }
     }
 
-    function updatePanel(config) {
-      // Update "next segment" in side panel every second
+    function updateSidePanel(config) {
       setInterval(() => {
-        if (!config.segments) return;
+        if (!config.segments || !currentClock) return;
         const now = new Date();
         const minute = now.getMinutes() + now.getSeconds() / 60;
         const next = getNextSegment(config.segments, minute);
@@ -159,22 +204,118 @@
       }, 1000);
     }
 
-    // Preset selectors (sync both)
-    const selectors = [document.getElementById('preset-select'), document.getElementById('preset-select-panel')];
-    selectors.forEach(sel => {
-      sel.addEventListener('change', (e) => {
-        const val = e.target.value;
-        selectors.forEach(s => s.value = val);
-        startClock(val);
+    function updateModeSelect(mode) {
+      const select = document.getElementById('mode-select');
+      const index = MODES.findIndex(m => m.id === mode.id);
+      select.value = mode.id;
+      select.selectedIndex = index;
+    }
+
+    function updateTallyLights() {
+      const container = document.getElementById('tally-container');
+      if (!currentClock) return;
+      const tallies = currentClock.tallies;
+      container.innerHTML = '';
+      tallies.forEach((tally, idx) => {
+        const div = document.createElement('div');
+        div.className = `bc-tally ${tally.active ? 'active' : ''}`;
+        div.style.setProperty('--colour', tally.colour);
+        div.innerHTML = `<span class="bc-dot"></span> ${tally.label}`;
+        div.addEventListener('click', () => currentClock.toggleTally(idx));
+        container.appendChild(div);
       });
+    }
+
+    function updateTools() {
+      const container = document.getElementById('tools-container');
+      container.innerHTML = `
+        <button class="bc-tool-btn" id="stopwatch-btn">STOPWATCH (S)</button>
+        <button class="bc-tool-btn orange" id="break-btn">BREAK</button>
+        <button class="bc-tool-btn red" id="dump-btn">DUMP</button>
+      `;
+      document.getElementById('stopwatch-btn').addEventListener('click', () => {
+        currentClock.stopwatchToggle();
+      });
+      document.getElementById('break-btn').addEventListener('click', () => {
+        const idx = currentClock.actionButtons.findIndex(b => b.label === 'BREAK');
+        currentClock.toggleAction(idx);
+      });
+      document.getElementById('dump-btn').addEventListener('click', () => {
+        const idx = currentClock.actionButtons.findIndex(b => b.label === 'DUMP');
+        currentClock.toggleAction(idx);
+      });
+    }
+
+    // Event listeners
+    document.getElementById('mode-select').addEventListener('change', (e) => {
+      const id = e.target.value;
+      if (currentClock) currentClock.setMode(id);
+    });
+
+    document.getElementById('preset-select').addEventListener('change', (e) => {
+      const val = e.target.value;
+      startClock(val);
+    });
+
+    document.getElementById('fullscreen-btn').addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(console.error);
+      } else {
+        document.exitFullscreen();
+      }
     });
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        document.getElementById('side-panel').style.display =
-          document.getElementById('side-panel').style.display === 'none' ? '' : 'none';
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+      switch (e.key.toUpperCase()) {
+        case 'O':
+          e.preventDefault();
+          const onAirIdx = currentClock?.tallies?.findIndex(t => t.label === 'ON AIR');
+          if (onAirIdx >= 0) currentClock.toggleTally(onAirIdx);
+          break;
+        case 'S':
+          e.preventDefault();
+          if (currentClock) currentClock.stopwatchToggle();
+          break;
+        case 'R':
+          e.preventDefault();
+          if (currentClock) currentClock.stopwatchReset();
+          break;
+        case 'F':
+          e.preventDefault();
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+          } else {
+            document.exitFullscreen();
+          }
+          break;
+        case 'T':
+          e.preventDefault();
+          const panel = document.getElementById('side-panel');
+          panel.style.display = panel.style.display === 'none' ? '' : 'none';
+          break;
+        case 'N':
+          e.preventDefault();
+          const npCard = document.querySelector('.bc-now-playing');
+          npCard.style.display = npCard.style.display === 'none' ? '' : 'none';
+          break;
+        case ' ':
+          e.preventDefault();
+          document.getElementById('clock-canvas').focus();
+          break;
+        default:
+          // 1-0 keys switch modes
+          const num = parseInt(e.key);
+          if (!isNaN(num) && num >= 1 && num <= MODES.length) {
+            e.preventDefault();
+            if (currentClock) currentClock.setMode(num - 1);
+          }
+          if (e.key === '0') {
+            e.preventDefault();
+            if (currentClock) currentClock.setMode(9);
+          }
       }
     });
 

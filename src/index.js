@@ -1,6 +1,6 @@
 // index.js — Web component registration + standalone init
 
-import { BroadcastClock } from './clock.js';
+import { BroadcastClock, MODES } from './clock.js';
 import { MetadataProvider } from './metadata.js';
 import { parseConfig } from './config.js';
 
@@ -55,7 +55,6 @@ class BroadcastClockElement extends HTMLElement {
         return;
       }
     } else {
-      // Minimal default
       config = parseConfig({ segments: [], name: 'Default' });
     }
 
@@ -95,7 +94,7 @@ if (!customElements.get('broadcast-clock')) {
 
 // ─── Standalone Init ────────────────────────────────────────
 
-export { BroadcastClock, MetadataProvider, parseConfig };
+export { BroadcastClock, MODES, MetadataProvider, parseConfig };
 
 /**
  * Initialise a broadcast clock on an existing canvas element.

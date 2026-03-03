@@ -219,9 +219,9 @@ export class BroadcastClock {
 
   _resize() {
     const parent = this.canvas.parentElement;
-    const size = parent
-      ? Math.min(parent.clientWidth, parent.clientHeight)
-      : Math.min(this.canvas.width, this.canvas.height);
+    const pw = parent ? parent.clientWidth : 400;
+    const ph = parent ? parent.clientHeight : 400;
+    const size = Math.max(200, Math.min(pw, ph));
     const dpr = window.devicePixelRatio || 1;
     this.canvas.width = size * dpr;
     this.canvas.height = size * dpr;
