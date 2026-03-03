@@ -1,0 +1,52 @@
+{
+  "name": "Now Ayrshire Radio — Standard Hour",
+  "segments": [
+    { "start": 0, "end": 3, "type": "news", "label": "News Bulletin", "description": "Top of hour news" },
+    { "start": 3, "end": 5, "type": "jingle", "label": "Station ID", "description": "Jingle + Station ident" },
+    { "start": 5, "end": 15, "type": "music", "label": "Music Set 1" },
+    { "start": 15, "end": 18, "type": "ads", "label": "Ad Break 1" },
+    { "start": 18, "end": 28, "type": "music", "label": "Music Set 2" },
+    { "start": 28, "end": 30, "type": "talk", "label": "Back Anno / Links" },
+    { "start": 30, "end": 32, "type": "news", "label": "Headlines" },
+    { "start": 32, "end": 45, "type": "music", "label": "Music Set 3" },
+    { "start": 45, "end": 48, "type": "ads", "label": "Ad Break 2" },
+    { "start": 48, "end": 56, "type": "music", "label": "Music Set 4" },
+    { "start": 56, "end": 58, "type": "talk", "label": "Show Outro / Tease" },
+    { "start": 58, "end": 60, "type": "jingle", "label": "Station Promo" }
+  ],
+  "colours": {
+    "music": "#3b82f6",
+    "ads": "#ef4444",
+    "news": "#22c55e",
+    "talk": "#f59e0b",
+    "jingle": "#8b5cf6",
+    "weather": "#06b6d4"
+  },
+  "metadata": {
+    "icecast": {
+      "enabled": true,
+      "url": "https://uksoutha.streaming.broadcast.radio:30590/status-json.xsl",
+      "streamMount": "/nowayrshireradio",
+      "pollInterval": 10000
+    }
+  },
+  "show": {
+    "name": "Through The Night Mix",
+    "presenter": "Auto DJ",
+    "source": "manual"
+  },
+  "display": {
+    "showLabels": true,
+    "showCentreTime": true,
+    "showNowPlaying": true,
+    "showNextSegment": true,
+    "theme": "dark",
+    "fontSize": "auto"
+  },
+  "timing": {
+    "syncEnabled": true,
+    "syncInterval": 60000,
+    "syncEndpoint": "/api/time",
+    "showSyncStatus": true
+  }
+}

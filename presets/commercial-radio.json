@@ -1,0 +1,32 @@
+{
+  "name": "Commercial FM — Peak Hour",
+  "segments": [
+    { "start": 0, "end": 2, "type": "news", "label": "News", "description": "National + local headlines" },
+    { "start": 2, "end": 3, "type": "weather", "label": "Weather" },
+    { "start": 3, "end": 4, "type": "jingle", "label": "Station ID" },
+    { "start": 4, "end": 10, "type": "music", "label": "Music Set 1" },
+    { "start": 10, "end": 14, "type": "ads", "label": "Ad Break 1", "description": "Premium spot" },
+    { "start": 14, "end": 20, "type": "music", "label": "Music Set 2" },
+    { "start": 20, "end": 23, "type": "talk", "label": "Phone-In / Chat" },
+    { "start": 23, "end": 27, "type": "music", "label": "Music Set 3" },
+    { "start": 27, "end": 31, "type": "ads", "label": "Ad Break 2" },
+    { "start": 31, "end": 32, "type": "jingle", "label": "Jingle" },
+    { "start": 32, "end": 40, "type": "music", "label": "Music Set 4" },
+    { "start": 40, "end": 44, "type": "ads", "label": "Ad Break 3" },
+    { "start": 44, "end": 50, "type": "music", "label": "Music Set 5" },
+    { "start": 50, "end": 54, "type": "ads", "label": "Ad Break 4" },
+    { "start": 54, "end": 58, "type": "music", "label": "Music Set 6" },
+    { "start": 58, "end": 60, "type": "jingle", "label": "Hour Close" }
+  ],
+  "colours": {
+    "music": "#3b82f6",
+    "ads": "#ef4444",
+    "news": "#22c55e",
+    "talk": "#f59e0b",
+    "jingle": "#8b5cf6",
+    "weather": "#06b6d4"
+  },
+  "show": { "name": "Breakfast Show", "presenter": "DJ Example" },
+  "display": { "showLabels": true, "showCentreTime": true, "showNowPlaying": true, "showNextSegment": true, "theme": "dark" },
+  "timing": { "syncEnabled": true, "syncInterval": 60000, "syncEndpoint": "/api/time", "showSyncStatus": true }
+}

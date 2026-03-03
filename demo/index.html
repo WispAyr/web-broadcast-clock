@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Broadcast Clock — Real-Time Radio Studio Clock</title>
+  <link rel="stylesheet" href="../src/styles.css">
+  <style>
+    /* Demo-specific overrides */
+    .bc-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      z-index: 10;
+      background: linear-gradient(to bottom, rgba(10,14,26,0.95), transparent);
+    }
+    .bc-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.6);
+      letter-spacing: 0.05em;
+    }
+    .bc-title span { color: #3b82f6; }
+    .bc-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+  </style>
+</head>
+<body class="bc-standalone">
+
+  <!-- Header -->
+  <div class="bc-header">
+    <div class="bc-title"><span>●</span> BROADCAST CLOCK</div>
+    <div class="bc-controls">
+      <select id="preset-select" class="bc-preset-select" style="width: auto; min-width: 200px;">
+        <option value="config-default.json">Community Radio (Now Ayrshire)</option>
+        <option value="config-commercial.json">Commercial FM</option>
+        <option value="config-music-only.json">Music Station (Auto)</option>
+        <option value="../presets/talk-radio.json">Talk Radio</option>
+      </select>
+      <a href="https://github.com/WispAyr/web-broadcast-clock" target="_blank" class="bc-github" title="Star on GitHub">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+
+  <!-- Main layout -->
+  <div class="bc-container">
+    <div class="bc-clock-wrapper" id="clock-wrapper">
+      <canvas id="clock-canvas"></canvas>
+    </div>
+
+    <div class="bc-panel" id="side-panel">
+      <div class="bc-card bc-now-playing">
+        <h3>🎵 Now Playing</h3>
+        <div class="bc-track" id="np-title">—</div>
+        <div class="bc-artist" id="np-artist">Waiting for metadata…</div>
+        <div class="bc-listeners" id="np-listeners">
+          <span class="bc-dot"></span>
+          <span id="np-listener-count">—</span> listeners
+        </div>
+      </div>
+
+      <div class="bc-card bc-show-info">
+        <h3>📻 On Air</h3>
+        <div class="bc-show-name" id="show-name">—</div>
+        <div class="bc-presenter" id="show-presenter">—</div>
+      </div>
+
+      <div class="bc-card bc-next-up">
+        <h3>⏭️ Coming Up</h3>
+        <div id="next-segment">—</div>
+      </div>
+
+      <div class="bc-card">
+        <h3>⚙️ Preset</h3>
+        <select id="preset-select-panel" class="bc-preset-select">
+          <option value="config-default.json">Community Radio</option>
+          <option value="config-commercial.json">Commercial FM</option>
+          <option value="config-music-only.json">Music Station</option>
+          <option value="../presets/talk-radio.json">Talk Radio</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { init, parseConfig, MetadataProvider } from '../src/index.js';
+    import { getSegmentAt, getNextSegment } from '../src/config.js';
+
+    let currentClock = null;
+    let currentMetadata = null;
+
+    async function loadPreset(url) {
+      const res = await fetch(url);
+      const config = await res.json();
+      return config;
+    }
+
+    async function startClock(configUrl) {
+      // Destroy previous
+      if (currentClock) currentClock.clock.destroy();
+      if (currentMetadata) currentMetadata.stop();
+
+      const config = await loadPreset(configUrl);
+      const canvas = document.getElementById('clock-canvas');
+      const result = init(canvas, config);
+      currentClock = result;
+      currentMetadata = result.metadata;
+
+      // Show info
+      document.getElementById('show-name').textContent = config.show?.name || '—';
+      document.getElementById('show-presenter').textContent = config.show?.presenter || '—';
+
+      // Update side panel metadata
+      if (currentMetadata) {
+        const origUpdate = currentMetadata.onUpdate;
+        currentMetadata.onUpdate = (data) => {
+          origUpdate(data);
+          updateNowPlaying(data);
+        };
+      }
+
+      // Panel update loop
+      updatePanel(config);
+    }
+
+    function updateNowPlaying(data) {
+      document.getElementById('np-title').textContent = data.title || '—';
+      document.getElementById('np-artist').textContent = data.artist || '—';
+      if (data.listeners != null && data.listeners > 0) {
+        document.getElementById('np-listener-count').textContent = data.listeners;
+      }
+    }
+
+    function updatePanel(config) {
+      // Update "next segment" in side panel every second
+      setInterval(() => {
+        if (!config.segments) return;
+        const now = new Date();
+        const minute = now.getMinutes() + now.getSeconds() / 60;
+        const next = getNextSegment(config.segments, minute);
+        if (next) {
+          const minsUntil = next.start - minute;
+          const m = minsUntil < 0 ? minsUntil + 60 : minsUntil;
+          const mins = Math.floor(m);
+          const secs = Math.floor((m - mins) * 60);
+          document.getElementById('next-segment').innerHTML =
+            `<span class="bc-next-label">${next.label}</span> in ${mins}:${String(secs).padStart(2, '0')}`;
+        }
+      }, 1000);
+    }
+
+    // Preset selectors (sync both)
+    const selectors = [document.getElementById('preset-select'), document.getElementById('preset-select-panel')];
+    selectors.forEach(sel => {
+      sel.addEventListener('change', (e) => {
+        const val = e.target.value;
+        selectors.forEach(s => s.value = val);
+        startClock(val);
+      });
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        document.getElementById('side-panel').style.display =
+          document.getElementById('side-panel').style.display === 'none' ? '' : 'none';
+      }
+    });
+
+    // Boot
+    startClock('config-default.json');
+  </script>
+</body>
+</html>

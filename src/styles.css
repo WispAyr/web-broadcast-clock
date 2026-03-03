@@ -1,0 +1,194 @@
+/* broadcast-clock base styles */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+:root {
+  --bc-bg: #0a0e1a;
+  --bc-surface: #111827;
+  --bc-border: rgba(255, 255, 255, 0.08);
+  --bc-text: #ffffff;
+  --bc-text-muted: rgba(255, 255, 255, 0.5);
+  --bc-text-dim: rgba(255, 255, 255, 0.3);
+  --bc-accent: #3b82f6;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body.bc-standalone {
+  background: var(--bc-bg);
+  color: var(--bc-text);
+  font-family: 'Inter', 'SF Pro', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+.bc-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100vw;
+  gap: 2rem;
+  padding: 1.5rem;
+}
+
+.bc-clock-wrapper {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bc-clock-wrapper canvas {
+  display: block;
+}
+
+/* Side panel */
+.bc-panel {
+  flex: 0 0 320px;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100%;
+  max-height: 700px;
+  justify-content: center;
+}
+
+.bc-card {
+  background: var(--bc-surface);
+  border: 1px solid var(--bc-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.bc-card h3 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--bc-text-muted);
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.bc-now-playing .bc-track {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--bc-text);
+  margin-bottom: 0.25rem;
+}
+
+.bc-now-playing .bc-artist {
+  font-size: 0.9rem;
+  color: var(--bc-text-muted);
+}
+
+.bc-show-info .bc-show-name {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.bc-show-info .bc-presenter {
+  font-size: 0.85rem;
+  color: var(--bc-text-muted);
+}
+
+.bc-next-up {
+  font-size: 0.9rem;
+  color: var(--bc-text-muted);
+}
+
+.bc-next-up .bc-next-label {
+  color: var(--bc-accent);
+  font-weight: 600;
+}
+
+/* Preset selector */
+.bc-preset-select {
+  background: var(--bc-surface);
+  color: var(--bc-text);
+  border: 1px solid var(--bc-border);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='rgba(255,255,255,0.5)' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+}
+
+.bc-preset-select:focus {
+  outline: none;
+  border-color: var(--bc-accent);
+}
+
+/* Listeners badge */
+.bc-listeners {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--bc-text-dim);
+  margin-top: 0.5rem;
+}
+
+.bc-listeners .bc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: bc-pulse 2s ease-in-out infinite;
+}
+
+@keyframes bc-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* GitHub link */
+.bc-github {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--bc-text-muted);
+  text-decoration: none;
+  font-size: 0.8rem;
+  transition: color 0.2s;
+}
+.bc-github:hover { color: var(--bc-text); }
+.bc-github svg { width: 20px; height: 20px; fill: currentColor; }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .bc-container {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  .bc-panel {
+    flex: 0 0 auto;
+    max-width: 100%;
+    width: 100%;
+    max-height: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .bc-card { flex: 1 1 200px; }
+}
+
+@media (max-width: 500px) {
+  .bc-panel { flex-direction: column; }
+}

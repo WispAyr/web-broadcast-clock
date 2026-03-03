@@ -1,0 +1,21 @@
+{
+  "name": "Talk Radio — Interview Hour",
+  "segments": [
+    { "start": 0, "end": 3, "type": "news", "label": "News Bulletin", "description": "Full headlines + weather" },
+    { "start": 3, "end": 4, "type": "jingle", "label": "Show Intro" },
+    { "start": 4, "end": 15, "type": "talk", "label": "Opening Monologue" },
+    { "start": 15, "end": 18, "type": "ads", "label": "Ad Break 1" },
+    { "start": 18, "end": 30, "type": "talk", "label": "Guest Interview Pt 1" },
+    { "start": 30, "end": 32, "type": "news", "label": "Headlines" },
+    { "start": 32, "end": 33, "type": "jingle", "label": "Bumper" },
+    { "start": 33, "end": 45, "type": "talk", "label": "Guest Interview Pt 2" },
+    { "start": 45, "end": 48, "type": "ads", "label": "Ad Break 2" },
+    { "start": 48, "end": 52, "type": "talk", "label": "Caller Segment" },
+    { "start": 52, "end": 55, "type": "music", "label": "Music Break" },
+    { "start": 55, "end": 58, "type": "talk", "label": "Wrap Up / Tease" },
+    { "start": 58, "end": 60, "type": "jingle", "label": "Show Close" }
+  ],
+  "show": { "name": "The Big Conversation", "presenter": "Host Name" },
+  "display": { "showLabels": true, "showCentreTime": true, "showNowPlaying": false, "showNextSegment": true, "theme": "dark" },
+  "timing": { "syncEnabled": true, "syncInterval": 60000, "syncEndpoint": "/api/time", "showSyncStatus": true }
+}
