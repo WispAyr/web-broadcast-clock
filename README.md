@@ -109,6 +109,59 @@ Sync status indicator: 🟢 <10ms | 🟡 10-100ms | 🔴 >100ms or no sync
 
 For production: run `ntpd` or `chrony` on the server, synced to stratum-1 sources.
 
+### Advanced: GPS NTP Server
+
+For dedicated broadcast environments, add a GPS receiver to your LAN:
+
+```
+GPS Receiver → Raspberry Pi (chrony) → LAN NTP server → ±1ms accuracy
+```
+
+**Hardware:** Raspberry Pi + GPS HAT with PPS (~£25, e.g. Adafruit Ultimate GPS HAT)
+
+### Advanced: Starlink as Stratum-1 NTP (confirmed working!)
+
+If your studio is on Starlink, the dish at `192.168.100.1` is already a GPS-disciplined NTP server — no extra hardware needed. **Tested: ±0.48ms precision** with 18 GPS satellites locked:
+
+```bash
+$ sntp 192.168.100.1
++0.010712 +/- 0.000483 192.168.100.1
+```
+
+Point your server's NTP at the dish:
+```bash
+# Linux (chrony) — add to /etc/chrony/chrony.conf:
+server 192.168.100.1 iburst prefer
+
+# macOS
+sudo sntp -sS 192.168.100.1
+```
+
+The dish also exposes gRPC at `192.168.100.1:9200`:
+```bash
+grpcurl -plaintext -d '{"get_status":{}}' 192.168.100.1:9200 SpaceX.API.Device.Device.Handle
+# Returns: gpsStats.gpsValid, gpsStats.gpsSats (15-20 typical), uptimeS
+```
+
+### Timing Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│  GPS Satellites (atomic clocks)                  │
+│         ↓                    ↓                   │
+│  Starlink Dish          GPS HAT on Pi            │
+│  (192.168.100.1)        (PPS signal)             │
+│    NTP: ±0.5ms          NTP: ±1μs               │
+│         ↓                    ↓                   │
+│    ┌─── LAN NTP Server (chrony) ───┐             │
+│    ↓              ↓                ↓             │
+│  Studio PC 1   Studio PC 2   Studio PC 3        │
+│    ↓              ↓                ↓             │
+│  Web Worker → performance.now() → rAF → Canvas  │
+│  (±0.5ms)     (±5μs resolution)   (60fps)       │
+└──────────────────────────────────────────────────┘
+```
+
 ## Dev Server
 
 Port 3970 (configurable via `PORT` env var).
